@@ -599,7 +599,7 @@ _CONFIGS = [
     #
     TrainConfig(
         name="pi0_ur5e",
-        model=pi0.Pi0Config(action_horizon=10),
+        model=pi0.Pi0Config(),
         data=LeRobotNomagicUR5eDataConfig(
             repo_id="robotgeneralist/nomagic-lerobot",
             assets=AssetsConfig(
