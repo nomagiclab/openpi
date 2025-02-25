@@ -304,16 +304,26 @@ class LeRobotNomagicUR5eDataConfig(DataConfigFactory):
             inputs=[
                 _transforms.RepackTransform(
                     {
-                        "images": {"cam_high": "observation.images.side"},
-                        "state": "observation.state",
-                        "actions": "action",
+                        "images": {
+                            "base_0_rgb": "observation.images.side",
+                            "left_wrist_0_rgb": "observation.images.wrist_left",
+                            "right_wrist_0_rgb": "observation.images.wrist_right",
+                        },
+                        "state": {
+                            "joints": "observation.state.joints",
+                            "gripper": "observation.state.gripper",
+                        },
+                        "actions": {
+                            "joints": "action.joints",
+                            "gripper": "action.gripper",
+                        },
                     }
                 )
             ]
         )
     )
     # Action keys that will be used to read the action sequence from the dataset.
-    action_sequence_keys: Sequence[str] = ("action",)
+    action_sequence_keys: Sequence[str] = ("action.joints", "action.gripper")
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -601,7 +611,7 @@ _CONFIGS = [
         name="pi0_ur5e",
         model=pi0.Pi0Config(),
         data=LeRobotNomagicUR5eDataConfig(
-            repo_id="robotgeneralist/nomagic-lerobot",
+            repo_id="robotgeneralist/nomagic-simple-box",
             assets=AssetsConfig(
                         assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
                         asset_id="ur5e",

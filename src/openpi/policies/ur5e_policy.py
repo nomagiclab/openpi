@@ -14,11 +14,12 @@ class UR5eInputs(transforms.DataTransformFn):
 
     # The expected cameras names. All input cameras must be in this set. Missing cameras will be
     # replaced with black images and the corresponding `image_mask` will be set to False.
-    EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("cam_high", "cam_low", "cam_left_wrist", "cam_right_wrist")
+    EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
 
     def __call__(self, data: dict) -> dict:
         # Get the state. We are padding from 14 to the model action dim.
-        state = transforms.pad_to_dim(data["state"], self.action_dim)
+        state = np.concat([data["state"]["joints"], data["state"]["gripper"].reshape(-1)])
+        state = transforms.pad_to_dim(state, self.action_dim)
 
         def convert_image(img):
             img = np.asarray(img)
@@ -38,41 +39,31 @@ class UR5eInputs(transforms.DataTransformFn):
         if set(in_images) - set(self.EXPECTED_CAMERAS):
             raise ValueError(f"Expected images to contain {self.EXPECTED_CAMERAS}, got {tuple(in_images)}")
 
-        # Assume that base image always exists.
-        base_image = in_images["cam_high"]
+        if not data["images"]:
+            raise ValueError("At least one camera view is expected in 'images'")
 
-        images = {
-            "base_0_rgb": base_image,
-        }
-        image_masks = {
-            "base_0_rgb": np.True_,
-        }
+        # Extract the size of one of the images.
+        any_image = next(iter(data["images"].values()))
+        image_shape = any_image.shape
 
-        # Add the extra images.
-        extra_image_names = {
-            "left_wrist_0_rgb": "cam_left_wrist",
-            "right_wrist_0_rgb": "cam_right_wrist",
-        }
-        for dest, source in extra_image_names.items():
-            if source in in_images:
-                images[dest] = in_images[source]
-                image_masks[dest] = np.True_
+        image_masks = {}
+
+        for image_name in self.EXPECTED_CAMERAS:
+            if image_name in data["images"]:
+                image_masks[image_name] = np.True_
             else:
-                images[dest] = np.zeros_like(base_image)
-                image_masks[dest] = np.False_
+                data["images"][image_name] = np.zeros(image_shape, dtype=np.uint8)
+                image_masks[image_name] = np.False_
 
         inputs = {
-            "image": images,
+            "image": data["images"],
             "image_mask": image_masks,
             "state": state,
         }
 
         # Actions are only available during training.
         if "actions" in data:
-            # TODO:
-            # Pi0 takes joint values and gripper state as input.
-            # We currently have position and orientation in the cartesian space.
-            actions = np.asarray(data["actions"])
+            actions = np.concat([data["actions"]["joints"], data["actions"]["gripper"].reshape(-1, 1)], axis=1)
             inputs["actions"] = transforms.pad_to_dim(actions, self.action_dim)
 
         if "prompt" in data:
