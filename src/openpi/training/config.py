@@ -609,7 +609,7 @@ _CONFIGS = [
             base_config=DataConfig(
                 prompt_from_task=True,
             ),
-            default_prompt="In: What action should the robot take to pick up the cardboard box and place it in the container?\nOut:",
+            default_prompt="In: What action should the robot take to put the cardboard box into the transparent plastic container?\nOut:",
         ),
         freeze_filter=pi0.Pi0Config(
             paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
