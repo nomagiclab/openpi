@@ -310,11 +310,11 @@ class LeRobotNomagicUR5eDataConfig(DataConfigFactory):
                             "right_wrist_0_rgb": "observation.images.wrist_right",
                         },
                         "state": {
-                            "joints": "observation.state.joints",
+                            "joints": "observation.state.pose",
                             "gripper": "observation.state.gripper",
                         },
                         "actions": {
-                            "joints": "action.joints",
+                            "joints": "action.pose",
                             "gripper": "action.gripper",
                         },
                     }
@@ -323,7 +323,7 @@ class LeRobotNomagicUR5eDataConfig(DataConfigFactory):
         )
     )
     # Action keys that will be used to read the action sequence from the dataset.
-    action_sequence_keys: Sequence[str] = ("action.joints", "action.gripper")
+    action_sequence_keys: Sequence[str] = ("action.pose", "action.gripper")
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
