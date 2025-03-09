@@ -17,7 +17,6 @@ class NomagicURXInputs(transforms.DataTransformFn):
     EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("side", "left_wrist", "right_wrist")
 
     def __call__(self, data: dict) -> dict:
-        # Get the state. We are padding from 14 to the model action dim.
         state = np.concat([data["state"]["joints"], data["state"]["gripper"].reshape(-1)])
         state = transforms.pad_to_dim(state, self.action_dim)
 
@@ -52,7 +51,9 @@ class NomagicURXInputs(transforms.DataTransformFn):
             if image_name in data["images"]:
                 image_masks[image_name] = np.True_
             else:
-                data["images"][image_name] = np.zeros(image_shape, dtype=np.uint8)
+                data["images"][image_name] = np.zeros(
+                    image_shape, dtype=np.uint8
+                )  # TODO this is wrong for different camera image dimensions
                 image_masks[image_name] = np.False_
 
         inputs = {

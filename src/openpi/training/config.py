@@ -317,13 +317,14 @@ class LeRobotNomagicURXDataConfig(DataConfigFactory):
                             "joints": "action.joints",
                             "gripper": "action.gripper",
                         },
+                        "prompt": "prompt",
                     }
                 )
             ]
         )
     )
     # Action keys that will be used to read the action sequence from the dataset.
-    action_sequence_keys: Sequence[str] = ("action.pose", "action.gripper")
+    action_sequence_keys: Sequence[str] = ("action.joints", "action.gripper")
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
