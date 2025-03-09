@@ -8,13 +8,13 @@ from openpi import transforms
 
 
 @dataclasses.dataclass(frozen=True)
-class UR5eInputs(transforms.DataTransformFn):
+class NomagicURXInputs(transforms.DataTransformFn):
     # The action dimension of the model. Will be used to pad state and actions.
     action_dim: int
 
     # The expected cameras names. All input cameras must be in this set. Missing cameras will be
     # replaced with black images and the corresponding `image_mask` will be set to False.
-    EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
+    EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("side", "left_wrist", "right_wrist")
 
     def __call__(self, data: dict) -> dict:
         # Get the state. We are padding from 14 to the model action dim.
@@ -73,7 +73,7 @@ class UR5eInputs(transforms.DataTransformFn):
 
 
 @dataclasses.dataclass(frozen=True)
-class UR5eOutputs(transforms.DataTransformFn):
+class NomagicURXOutputs(transforms.DataTransformFn):
     def __call__(self, data: dict) -> dict:
         # Only return the first 7 dims.
         return {"actions": np.asarray(data["actions"][:, :7])}

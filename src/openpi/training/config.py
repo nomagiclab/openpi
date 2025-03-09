@@ -19,7 +19,7 @@ import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
-import openpi.policies.ur5e_policy as ur5e_policy
+import openpi.policies.nomagic_urx_policy as nomagic_urx_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
@@ -87,6 +87,9 @@ class DataConfig:
 
     # If true, will use the LeRobot dataset task to define the prompt.
     prompt_from_task: bool = False
+
+    # If true, will disable syncing the dataset from the Hugging Face Hub. Allows training on local-only datasets.
+    local_files_only: bool = False
 
 
 class GroupFactory(Protocol):
@@ -291,7 +294,7 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
 
 
 @dataclasses.dataclass(frozen=True)
-class LeRobotNomagicUR5eDataConfig(DataConfigFactory):
+class LeRobotNomagicURXDataConfig(DataConfigFactory):
     # If provided, will be injected into the input data if the "prompt" key is not present.
     default_prompt: str | None = None
 
@@ -302,16 +305,16 @@ class LeRobotNomagicUR5eDataConfig(DataConfigFactory):
                 _transforms.RepackTransform(
                     {
                         "images": {
-                            "base_0_rgb": "observation.images.side",
-                            "left_wrist_0_rgb": "observation.images.wrist_left",
-                            "right_wrist_0_rgb": "observation.images.wrist_right",
+                            "side": "observation.images.side",
+                            "left_wrist": "observation.images.wrist_left",
+                            "right_wrist": "observation.images.wrist_right",
                         },
                         "state": {
-                            "joints": "observation.state.pose",
+                            "joints": "observation.state.joints",
                             "gripper": "observation.state.gripper",
                         },
                         "actions": {
-                            "joints": "action.pose",
+                            "joints": "action.joints",
                             "gripper": "action.gripper",
                         },
                     }
@@ -326,9 +329,9 @@ class LeRobotNomagicUR5eDataConfig(DataConfigFactory):
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         # Prepare data for policy training
         data_transforms = _transforms.Group(
-                inputs=[ur5e_policy.UR5eInputs(action_dim=model_config.action_dim)],
-                outputs=[ur5e_policy.UR5eOutputs()],
-            )
+            inputs=[nomagic_urx_policy.NomagicURXInputs(action_dim=model_config.action_dim)],
+            outputs=[nomagic_urx_policy.NomagicURXOutputs()],
+        )
 
         # Model transforms include things like tokenizing the prompt and action targets
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
@@ -596,17 +599,13 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     #
-    # UR5e config
+    # NomagicURX config
     #
     TrainConfig(
-        name="pi0_ur5e",
+        name="pi0_nomagic_urx",
         model=pi0.Pi0Config(),
-        data=LeRobotNomagicUR5eDataConfig(
+        data=LeRobotNomagicURXDataConfig(
             repo_id="robotgeneralist/nomagic-simple-box",
-            assets=AssetsConfig(
-                        assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
-                        asset_id="ur5e",
-                    ),
             base_config=DataConfig(
                 prompt_from_task=True,
             ),
@@ -616,7 +615,7 @@ _CONFIGS = [
             paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
         ).get_freeze_filter(),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
-        num_train_steps=20000
+        num_train_steps=20000,
     ),
     #
     # Debugging configs.
