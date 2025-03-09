@@ -7,54 +7,37 @@ import numpy as np
 from openpi import transforms
 
 
+def _parse_image(image) -> np.ndarray:
+    image = np.asarray(image)
+    if np.issubdtype(image.dtype, np.floating):
+        image = (255 * image).astype(np.uint8)
+    if image.shape[0] == 3:
+        image = einops.rearrange(image, "c h w -> h w c")
+    return image
+
+
 @dataclasses.dataclass(frozen=True)
 class NomagicURXInputs(transforms.DataTransformFn):
     # The action dimension of the model. Will be used to pad state and actions.
     action_dim: int
 
-    # The expected cameras names. All input cameras must be in this set. Missing cameras will be
-    # replaced with black images and the corresponding `image_mask` will be set to False.
     EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("side", "left_wrist", "right_wrist")
 
     def __call__(self, data: dict) -> dict:
-        state = np.concat([data["state"]["joints"], data["state"]["gripper"].reshape(-1)])
-        state = transforms.pad_to_dim(state, self.action_dim)
-
-        def convert_image(img):
-            img = np.asarray(img)
-            # Convert to uint8 if using float images.
-            if np.issubdtype(img.dtype, np.floating):
-                img = (255 * img).astype(np.uint8)
-            # Convert from [channel, height, width] to [height, width, channel].
-            img = einops.rearrange(img, "c h w -> h w c")
-            return img
-
-        images = data["images"]
-        images_dict = {name: convert_image(img) for name, img in images.items()}
-
-        data["images"] = images_dict
-
+        # We want all the images to be present.
         in_images = data["images"]
-        if set(in_images) - set(self.EXPECTED_CAMERAS):
+        if set(in_images) != set(self.EXPECTED_CAMERAS):
             raise ValueError(f"Expected images to contain {self.EXPECTED_CAMERAS}, got {tuple(in_images)}")
 
-        if not data["images"]:
-            raise ValueError("At least one camera view is expected in 'images'")
+        # Construct the state.
+        state = np.concat([data["state"]["arm"], data["state"]["gripper"].reshape(-1)])
+        state = transforms.pad_to_dim(state, self.action_dim)
 
-        # Extract the size of one of the images.
-        any_image = next(iter(data["images"].values()))
-        image_shape = any_image.shape
+        # Change the format of the images to (H, W, C) and convert to uint8.
+        for name in self.EXPECTED_CAMERAS:
+            data["images"][name] = _parse_image(data["images"][name])
 
-        image_masks = {}
-
-        for image_name in self.EXPECTED_CAMERAS:
-            if image_name in data["images"]:
-                image_masks[image_name] = np.True_
-            else:
-                data["images"][image_name] = np.zeros(
-                    image_shape, dtype=np.uint8
-                )  # TODO this is wrong for different camera image dimensions
-                image_masks[image_name] = np.False_
+        image_masks = {image_name: np.True_ for image_name in self.EXPECTED_CAMERAS}
 
         inputs = {
             "image": data["images"],
@@ -64,7 +47,7 @@ class NomagicURXInputs(transforms.DataTransformFn):
 
         # Actions are only available during training.
         if "actions" in data:
-            actions = np.concat([data["actions"]["joints"], data["actions"]["gripper"].reshape(-1, 1)], axis=1)
+            actions = np.concat([data["actions"]["arm"], data["actions"]["gripper"].reshape(-1, 1)], axis=1)
             inputs["actions"] = transforms.pad_to_dim(actions, self.action_dim)
 
         if "prompt" in data:

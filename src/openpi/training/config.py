@@ -88,9 +88,6 @@ class DataConfig:
     # If true, will use the LeRobot dataset task to define the prompt.
     prompt_from_task: bool = False
 
-    # If true, will disable syncing the dataset from the Hugging Face Hub. Allows training on local-only datasets.
-    local_files_only: bool = False
-
 
 class GroupFactory(Protocol):
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
@@ -294,37 +291,13 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
 
 
 @dataclasses.dataclass(frozen=True)
-class LeRobotNomagicURXDataConfig(DataConfigFactory):
+class _BaseLeRobotNomagicURXDataConfig(DataConfigFactory):
     # If provided, will be injected into the input data if the "prompt" key is not present.
     default_prompt: str | None = None
 
-    # Repack transforms.
-    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
-        default=_transforms.Group(
-            inputs=[
-                _transforms.RepackTransform(
-                    {
-                        "images": {
-                            "side": "observation.images.side",
-                            "left_wrist": "observation.images.wrist_left",
-                            "right_wrist": "observation.images.wrist_right",
-                        },
-                        "state": {
-                            "joints": "observation.state.joints",
-                            "gripper": "observation.state.gripper",
-                        },
-                        "actions": {
-                            "joints": "action.joints",
-                            "gripper": "action.gripper",
-                        },
-                        "prompt": "prompt",
-                    }
-                )
-            ]
-        )
+    base_config: tyro.conf.Suppress[DataConfig | None] = dataclasses.field(
+        default_factory=lambda: DataConfig(prompt_from_task=True)
     )
-    # Action keys that will be used to read the action sequence from the dataset.
-    action_sequence_keys: Sequence[str] = ("action.joints", "action.gripper")
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -344,6 +317,64 @@ class LeRobotNomagicURXDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotNomagicURXJointSpaceDataConfig(_BaseLeRobotNomagicURXDataConfig):
+    action_sequence_keys: Sequence[str] = ("action.joints", "action.gripper")
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {
+                            "side": "observation.images.side",
+                            "left_wrist": "observation.images.wrist_left",
+                            "right_wrist": "observation.images.wrist_right",
+                        },
+                        "state": {
+                            "arm": "observation.state.joints",
+                            "gripper": "observation.state.gripper",
+                        },
+                        "actions": {
+                            "arm": "action.joints",
+                            "gripper": "action.gripper",
+                        },
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotNomagicURXCartesianSpaceDataConfig(_BaseLeRobotNomagicURXDataConfig):
+    action_sequence_keys: Sequence[str] = ("action.pose", "action.gripper")
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {
+                            "side": "observation.images.side",
+                            "left_wrist": "observation.images.wrist_left",
+                            "right_wrist": "observation.images.wrist_right",
+                        },
+                        "state": {
+                            "arm": "observation.state.pose",
+                            "gripper": "observation.state.gripper",
+                        },
+                        "actions": {
+                            "arm": "action.pose",
+                            "gripper": "action.gripper",
+                        },
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -603,14 +634,22 @@ _CONFIGS = [
     # NomagicURX config
     #
     TrainConfig(
-        name="pi0_nomagic_urx",
+        name="pi0_nomagic_urx_joint_space",
         model=pi0.Pi0Config(),
-        data=LeRobotNomagicURXDataConfig(
+        data=LeRobotNomagicURXJointSpaceDataConfig(
             repo_id="robotgeneralist/nomagic-simple-box",
-            base_config=DataConfig(
-                prompt_from_task=True,
-            ),
-            default_prompt="In: What action should the robot take to put the cardboard box into the transparent plastic container?\nOut:",
+        ),
+        freeze_filter=pi0.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=20000,
+    ),
+    TrainConfig(
+        name="pi0_nomagic_urx_cartesian_space",
+        model=pi0.Pi0Config(),
+        data=LeRobotNomagicURXCartesianSpaceDataConfig(
+            repo_id="robotgeneralist/nomagic-simple-box",
         ),
         freeze_filter=pi0.Pi0Config(
             paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
