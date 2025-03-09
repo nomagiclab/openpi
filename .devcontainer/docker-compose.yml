@@ -1,0 +1,17 @@
+services:
+  devcontainer:
+    build:
+      context: ..
+      dockerfile: ./Dockerfile
+    working_dir: /app
+    command: sleep infinity
+    volumes:
+      - ..:/app:cached
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
