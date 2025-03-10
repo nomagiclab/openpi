@@ -11,5 +11,4 @@
 #SBATCH --output="logs/slurm-%j.txt"
 #SBATCH --error="logs/slurm-%j.txt"
 
-cd openpi
 srun uv run scripts/compute_norm_stats.py --config-name pi0_nomagic_urx_joint_space
