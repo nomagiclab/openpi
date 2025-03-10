@@ -5,6 +5,7 @@ will compute the mean and standard deviation of the data in the dataset and save
 to the config assets directory.
 """
 
+from dotenv import load_dotenv
 import numpy as np
 import tqdm
 import tyro
@@ -72,4 +73,5 @@ def main(config_name: str, max_frames: int | None = None):
 
 
 if __name__ == "__main__":
+    load_dotenv()
     tyro.cli(main)
