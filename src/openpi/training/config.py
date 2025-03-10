@@ -19,7 +19,7 @@ import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
-import openpi.policies.ur5e_policy as ur5e_policy
+import openpi.policies.nomagic_urx_policy as nomagic_urx_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
@@ -291,44 +291,21 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
 
 
 @dataclasses.dataclass(frozen=True)
-class LeRobotNomagicUR5eDataConfig(DataConfigFactory):
+class _BaseLeRobotNomagicURXDataConfig(DataConfigFactory):
     # If provided, will be injected into the input data if the "prompt" key is not present.
     default_prompt: str | None = None
 
-    # Repack transforms.
-    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
-        default=_transforms.Group(
-            inputs=[
-                _transforms.RepackTransform(
-                    {
-                        "images": {
-                            "base_0_rgb": "observation.images.side",
-                            "left_wrist_0_rgb": "observation.images.wrist_left",
-                            "right_wrist_0_rgb": "observation.images.wrist_right",
-                        },
-                        "state": {
-                            "joints": "observation.state.pose",
-                            "gripper": "observation.state.gripper",
-                        },
-                        "actions": {
-                            "joints": "action.pose",
-                            "gripper": "action.gripper",
-                        },
-                    }
-                )
-            ]
-        )
+    base_config: tyro.conf.Suppress[DataConfig | None] = dataclasses.field(
+        default_factory=lambda: DataConfig(prompt_from_task=True)
     )
-    # Action keys that will be used to read the action sequence from the dataset.
-    action_sequence_keys: Sequence[str] = ("action.pose", "action.gripper")
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         # Prepare data for policy training
         data_transforms = _transforms.Group(
-                inputs=[ur5e_policy.UR5eInputs(action_dim=model_config.action_dim)],
-                outputs=[ur5e_policy.UR5eOutputs()],
-            )
+            inputs=[nomagic_urx_policy.NomagicURXInputs(action_dim=model_config.action_dim)],
+            outputs=[nomagic_urx_policy.NomagicURXOutputs()],
+        )
 
         # Model transforms include things like tokenizing the prompt and action targets
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
@@ -340,6 +317,64 @@ class LeRobotNomagicUR5eDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotNomagicURXJointSpaceDataConfig(_BaseLeRobotNomagicURXDataConfig):
+    action_sequence_keys: Sequence[str] = ("action.joints", "action.gripper")
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {
+                            "base_0_rgb": "observation.images.side",
+                            "left_wrist_0_rgb": "observation.images.wrist_left",
+                            "right_wrist_0_rgb": "observation.images.wrist_right",
+                        },
+                        "state": {
+                            "arm": "observation.state.joints",
+                            "gripper": "observation.state.gripper",
+                        },
+                        "actions": {
+                            "arm": "action.joints",
+                            "gripper": "action.gripper",
+                        },
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotNomagicURXCartesianSpaceDataConfig(_BaseLeRobotNomagicURXDataConfig):
+    action_sequence_keys: Sequence[str] = ("action.pose", "action.gripper")
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {
+                            "base_0_rgb": "observation.images.side",
+                            "left_wrist_0_rgb": "observation.images.wrist_left",
+                            "right_wrist_0_rgb": "observation.images.wrist_right",
+                        },
+                        "state": {
+                            "arm": "observation.state.pose",
+                            "gripper": "observation.state.gripper",
+                        },
+                        "actions": {
+                            "arm": "action.pose",
+                            "gripper": "action.gripper",
+                        },
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -596,27 +631,31 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     #
-    # UR5e config
+    # NomagicURX config
     #
     TrainConfig(
-        name="pi0_ur5e",
+        name="pi0_nomagic_urx_joint_space",
         model=pi0.Pi0Config(),
-        data=LeRobotNomagicUR5eDataConfig(
+        data=LeRobotNomagicURXJointSpaceDataConfig(
             repo_id="robotgeneralist/nomagic-simple-box",
-            assets=AssetsConfig(
-                        assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
-                        asset_id="ur5e",
-                    ),
-            base_config=DataConfig(
-                prompt_from_task=True,
-            ),
-            default_prompt="In: What action should the robot take to put the cardboard box into the transparent plastic container?\nOut:",
         ),
         freeze_filter=pi0.Pi0Config(
             paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
         ).get_freeze_filter(),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
-        num_train_steps=20000
+        num_train_steps=20000,
+    ),
+    TrainConfig(
+        name="pi0_nomagic_urx_cartesian_space",
+        model=pi0.Pi0Config(),
+        data=LeRobotNomagicURXCartesianSpaceDataConfig(
+            repo_id="robotgeneralist/nomagic-simple-box",
+        ),
+        freeze_filter=pi0.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=20000,
     ),
     #
     # Debugging configs.
