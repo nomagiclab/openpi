@@ -357,9 +357,9 @@ class LeRobotNomagicURXCartesianSpaceDataConfig(_BaseLeRobotNomagicURXDataConfig
                 _transforms.RepackTransform(
                     {
                         "images": {
-                            "side": "observation.images.side",
-                            "left_wrist": "observation.images.wrist_left",
-                            "right_wrist": "observation.images.wrist_right",
+                            "base_0_rgb": "observation.images.side",
+                            "left_wrist_0_rgb": "observation.images.wrist_left",
+                            "right_wrist_0_rgb": "observation.images.wrist_right",
                         },
                         "state": {
                             "arm": "observation.state.pose",

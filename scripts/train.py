@@ -4,6 +4,7 @@ import logging
 import platform
 from typing import Any
 
+from dotenv import load_dotenv
 import etils.epath as epath
 import flax.nnx as nnx
 from flax.training import common_utils
@@ -270,4 +271,5 @@ def main(config: _config.TrainConfig):
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main(_config.cli())

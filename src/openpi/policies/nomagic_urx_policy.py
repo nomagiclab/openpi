@@ -21,7 +21,7 @@ class NomagicURXInputs(transforms.DataTransformFn):
     # The action dimension of the model. Will be used to pad state and actions.
     action_dim: int
 
-    EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("side", "left_wrist", "right_wrist")
+    EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
 
     def __call__(self, data: dict) -> dict:
         # We want all the images to be present.
